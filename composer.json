@@ -1,0 +1,24 @@
+{
+    "name": "properos/laravel-base",
+    "description": "An amazing toolkit to kickstart your Laravel project.",
+    "authors": [
+        {
+            "name": "Properos",
+            "email": "info@properos.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {},
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Properos\\Base\\BaseServiceProvider"
+            ]
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Properos\\Base\\": "src/"
+        }
+    }
+}
