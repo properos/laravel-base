@@ -45,14 +45,6 @@ Add on webpack.mix.js
     import Helpers from './misc/helpers'
     window.Helpers = Helpers;
 ```
-**Remove from resources/assets/bootstrap.js**
-```php
-    try {
-        window.$ = window.jQuery = require('jquery');
-
-        require('bootstrap');
-    } catch (e) {}
-```
 
 **Run npm install**
 
