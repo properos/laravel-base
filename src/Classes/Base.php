@@ -2,8 +2,11 @@
 
 namespace Properos\Base\Classes;
 
-use Properos\Base\Classes\Paginator;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 use Properos\Base\Classes\Api;
+use Properos\Base\Classes\Paginator;
+use Illuminate\Support\Facades\Validator;
 use Properos\Base\Exceptions\ApiException;
 
 /**
@@ -40,7 +43,7 @@ abstract class Base extends Paginator
 
     public function createModel($data = [], $rules = [], $messages = [])
     {
-        $validation = \Validator::make($data, $rules, $messages);
+        $validation = Validator::make($data, $rules, $messages);
 
         if ($validation->passes()) {
             return $this->model->create($this->fillable(array_merge($this->fillable, $this->formatting($data))));
@@ -56,7 +59,7 @@ abstract class Base extends Paginator
         }
         $rules = array_intersect_key($rules, $data);
 
-        $validation = \Validator::make($data, $rules, $messages);
+        $validation = Validator::make($data, $rules, $messages);
 
         if ($validation->passes()) {
             if (isset($data['where']) && count($data['where']) > 0) {
@@ -85,7 +88,7 @@ abstract class Base extends Paginator
         }
 
         if (is_array($id) && count($id) > 0) {
-            return Api::success(\Str::plural($this->title) . ' were successfully deleted.', $this->model->whereIn('id', $id)->delete());
+            return Api::success(Str::plural($this->title) . ' were successfully deleted.', $this->model->whereIn('id', $id)->delete());
         } elseif ($id > 0) {
             return Api::success($this->title . ' was successfully deleted.', $this->model->where('id', $id)->delete());
         }
@@ -129,10 +132,11 @@ abstract class Base extends Paginator
                 $indexFields = implode(',', $this->model->searchable);
                 $model->whereRaw("MATCH($indexFields) AGAINST(? IN BOOLEAN MODE)", $options['q']);
             } else {
+                //$searchable = isset($this->model->searchable) ? $this->model->searchable : [];
                 if (isset($options['q_fields']) && count($options['q_fields']) > 0) {
-                    $fields = $this->intersect($options['q_fields'], $this->model->searchable);
+                    $fields = $options['q_fields'];
                 } else {
-                    $fields = $this->model->searchable;
+                    $fields = [];
                 }
 
                 if (count($fields) > 0) {
@@ -287,6 +291,13 @@ abstract class Base extends Paginator
                 }
             }
         }
+        if (isset($options['where_has_morph']) && count($options['where_has_morph']) > 0) {
+            foreach ($options['where_has_morph'] as $whereHasMorph) {
+                if (is_array($whereHasMorph) && Helper::isAssoc($whereHasMorph)) {
+                    $model->whereHasMorph($whereHasMorph['relationship'], $whereHasMorph['morph'], $whereHasMorph['function']);
+                }
+            }
+        }
 
         if (isset($options['group_by']) && count($options['group_by']) > 0) { //[field, ..., fieldN]
             if (is_string($options['group_by'])) {
@@ -331,7 +342,7 @@ abstract class Base extends Paginator
         return array_keys($this->fillable);
     }
 
-    public function standardize_search($request, $parameter = [], $only = ['query', 'page', 'limit', 'where', 'fields', 'with', 'has', 'doesnt_have', 'where_null', 'where_not_null', 'where_in', 'where_not_in', 'where_has', 'where_doesnt_have', 'orderby', 'withTrashed', 'or_where_has', 'group_by', 'func_where', 'where_raw', 'fields_raw'])
+    public function standardize_search($request, $parameter = [], $only = ['query', 'page', 'limit', 'where', 'fields', 'with', 'has', 'doesnt_have', 'where_null', 'where_not_null', 'where_in', 'where_not_in', 'where_has', 'where_doesnt_have', 'orderby', 'withTrashed', 'or_where_has', 'group_by', 'func_where', 'where_raw', 'fields_raw','where_has_morph'])
     {
         if (is_array($request)) {
             $data = array_merge_recursive($request, $parameter);
@@ -352,8 +363,8 @@ abstract class Base extends Paginator
                     if (is_string($value)) {
                         $options['q'] = $value;
                     } elseif (is_array($value) && Helper::isAssoc($value)) {
-                        $options['q'] = \Arr::get($value, 'value', '');
-                        $options['q_fields'] = \Arr::get($value, 'fields', []);
+                        $options['q'] = Arr::get($value, 'value', '');
+                        $options['q_fields'] = Arr::get($value, 'fields', []);
                     }
                     break;
                 case 'fields_raw':
@@ -429,6 +440,22 @@ abstract class Base extends Paginator
                         }
                     }
                     break;
+                case 'where_has_morph':
+                    if (count($value) > 0) {
+                        $options[$key] = [];
+                        foreach ($value as $relationship => $opts) {
+                            if (isset($opts['morph']) && count($opts['morph']) > 0 && isset($opts['options']) && count($opts['options']) > 0) {
+                                $options[$key][] = [
+                                    "relationship" => $relationship,
+                                    "morph" => $opts['morph'],
+                                    "function" => function ($query) use ($opts) {
+                                        return $this->buildingModel($query, $this->standardize_search($opts['options']));
+                                    }
+                                ];
+                            }
+                        }
+                    }
+                    break;
                 case 'take':
                 case 'limit':
                     if ($value > 0) {
@@ -469,11 +496,11 @@ abstract class Base extends Paginator
             $whereOR = '';
             $aQuery = explode(' ', $query);
             foreach ($aQuery as $value) {
-                if (\Str::startsWith($value, '+*') || (\Str::startsWith($value, '+') && \Str::endsWith($value, '*'))) {
+                if (Str::startsWith($value, '+*') || (Str::startsWith($value, '+') && Str::endsWith($value, '*'))) {
                     $whereAND .= " ?field? LIKE '" . preg_replace("/(^\+\*|\*$)/", "%", $value) . "' AND";
-                } elseif (\Str::startsWith($value, '+')) {
+                } elseif (Str::startsWith($value, '+')) {
                     $whereAND .= " ?field? LIKE '" . preg_replace("/^\+/", "", $value) . "' AND";
-                } elseif (\Str::startsWith($value, '*') || \Str::endsWith($value, '*')) {
+                } elseif (Str::startsWith($value, '*') || Str::endsWith($value, '*')) {
                     $whereOR .= " ?field? LIKE '" . preg_replace("/(^\*|\*$)/", "%", $value) . "' OR";
                 } else {
                     $whereOR .= " ?field? LIKE '" . $value . "' OR";
@@ -515,7 +542,7 @@ abstract class Base extends Paginator
             if (isset($options['fields']) && count($options['fields']) > 0) {
                 $collections = $model->get();
                 $res = $collections->map(function ($item) use ($options) {
-                    return \Arr::only($item->toArray(), $options['fields']);
+                    return Arr::only($item->toArray(), $options['fields']);
                 });
                 return $res->all();
             } else {
@@ -538,5 +565,54 @@ abstract class Base extends Paginator
         }
 
         return $res;
+    }
+
+
+    /**
+     * param Model $model
+     * param Array|json $data
+     * 
+     * data example: $data = appends:{
+     *                          method_name:{
+     *                              as: "Alias",
+     *                              params: [param1,param2]
+     *                          }
+     *                       }
+     * 
+     * return array
+     */
+    public function appends($model, $data)
+    {
+        $res = [];
+        if (is_string($data)) {
+            $data = json_decode($data, true);
+        }
+
+        if (is_array($data)) {
+            foreach ($data as $method => $_options) {
+                if (method_exists($model, $method)) {
+                    $as = Helper::getValue($_options, 'as', '_' . $method);
+                    $res[$as] = call_user_func_array([
+                        $model, $method
+                    ], Helper::getValue($_options, 'params', []));
+                }
+            }
+        }
+        return $res;
+    }
+
+    public function getFieldsToSelect()
+    {
+        if (method_exists($this->model, 'getFieldsToSelect')) {
+            $str = $this->model->getFieldsToSelect();
+        } else {
+            $fields = array_merge(['id'], $this->getFillableKeys());
+            $str = '';
+            foreach ($fields as $value) {
+                $str .= "$value ,";
+            }
+            $str = rtrim($str, ' ,');
+        }
+        return $str;
     }
 }

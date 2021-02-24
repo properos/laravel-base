@@ -13,18 +13,25 @@ class BaseServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        $this->publishes([
-            __DIR__.'/public/.well-known' => public_path('/.well-known'),
-        ], 'base');
-        $this->publishes([
-            __DIR__.'/resources/views' => resource_path('views'),
-        ]);
-        $this->publishes([
-            __DIR__.'/resources/assets/js/be' => resource_path('js/be'),
-        ]);
-        $this->publishes([
-            __DIR__.'/resources/assets/js/global' => resource_path('js'),
-        ]);
+        if (app()->version() < "5.8") {
+            $this->publishes([
+                __DIR__ . '/public/be' => public_path('/be'),
+                __DIR__ . '/public/fe' => public_path('/themes'),
+                __DIR__ . '/public/.well-known' => public_path('/.well-known'),
+                __DIR__ . '/resources/views' => resource_path('views'),
+                __DIR__ . '/resources/assets/js/be' => resource_path('assets/js/be'),
+                __DIR__ . '/resources/assets/js/global' => resource_path('assets/js'),
+            ], 'base');
+        } else {
+            $this->publishes([
+                __DIR__ . '/public/be' => public_path('/be'),
+                __DIR__ . '/public/fe' => public_path('/themes'),
+                __DIR__ . '/public/.well-known' => public_path('/.well-known'),
+                __DIR__ . '/resources/views' => resource_path('views'),
+                __DIR__ . '/resources/assets/js/be' => resource_path('js/be'),
+                __DIR__ . '/resources/assets/js/global' => resource_path('js'),
+            ], 'base');
+        }
     }
 
     /**
@@ -35,6 +42,5 @@ class BaseServiceProvider extends ServiceProvider
     public function register()
     {
         $this->app->make('Properos\Base\Controllers\ApiController');
-
     }
 }

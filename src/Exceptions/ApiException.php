@@ -4,6 +4,7 @@ namespace Properos\Base\Exceptions;
 
 use Exception;
 use Illuminate\Http\Response;
+use Illuminate\Support\Arr;
 
 class ApiException extends Exception
 {
@@ -27,6 +28,7 @@ class ApiException extends Exception
         $this->data = $data;
         $this->headers = $headers;
         $this->httpCode = $httpCode;
+        \Log::info(json_encode($this->errors));
     }
     /**
      * Render the exception as an HTTP response.
@@ -36,7 +38,7 @@ class ApiException extends Exception
      */
     public function render($request)
     {
-        return  \Response::json($this->ApiResponse(), $this->httpCode, $this->headers);
+        return  response()->json($this->ApiResponse(), $this->httpCode, $this->headers);
     }
 
     public function messages()
@@ -46,7 +48,7 @@ class ApiException extends Exception
     
     public function message()
     {
-        return \Arr::get($this->messages, '0', '');
+        return Arr::get($this->messages, '0', '');
     }
 
     public function getMessages()
@@ -76,6 +78,7 @@ class ApiException extends Exception
         }else if (is_object($this->data) && $this->data) {
             $response['data'] = $this->data;
         }
+
         return $response;
     }
 }
