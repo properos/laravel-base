@@ -2,16 +2,6 @@
 
 Base package with classes (Api, Base, Helper, Paginator, Theme), controllers and views necessarry to start a project. 
 
-**Register provider on composer.json**
-```json
-    "autoload": {
-    "...": {},
-        "psr-4": {
-            "App\\": "app/",
-            "Properos\\Base\\": "packages/properos/properos-base/src"
-        }
-    },
-```
 **Register provider on config/app.php**
 ```php
     'providers' => [
@@ -35,7 +25,6 @@ It contains a Themes class to allow the use of several themes in the project. Th
     });
 ```
 **Create env.js**
-
 Add on webpack.mix.js
 .js('resources/assets/js/bootstrap.js', 'public/be/js/core.js')
 .sass('resources/assets/js/be/sass/app.scss', 'public/be/css')
