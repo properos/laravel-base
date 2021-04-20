@@ -342,7 +342,7 @@ abstract class Base extends Paginator
         return array_keys($this->fillable);
     }
 
-    public function standardize_search($request, $parameter = [], $only = ['query', 'page', 'limit', 'where', 'fields', 'with', 'has', 'doesnt_have', 'where_null', 'where_not_null', 'where_in', 'where_not_in', 'where_has', 'where_doesnt_have', 'orderby', 'withTrashed', 'or_where_has', 'group_by', 'func_where', 'where_raw', 'fields_raw','where_has_morph'])
+    public function standardize_search($request, $parameter = [], $only = ['query', 'page', 'limit', 'where', 'fields', 'with', 'has', 'doesnt_have', 'where_null', 'where_not_null', 'where_in', 'where_not_in', 'where_has', 'where_doesnt_have', 'orderby', 'withTrashed', 'or_where_has', 'group_by', 'func_where', 'where_raw', 'fields_raw', 'where_has_morph'])
     {
         if (is_array($request)) {
             $data = array_merge_recursive($request, $parameter);
@@ -381,19 +381,19 @@ abstract class Base extends Paginator
                 case 'where_not_null':
                 case 'where_in':
                 case 'where_not_in':
-                    if (count($value) > 0) {
+                    if (is_array($value) && count($value) > 0) {
                         $options[$key] = $value;
                     }
                     break;
                 case 'fields':
-                    if (count($value) > 0) {
+                    if (is_array($value) && count($value) > 0) {
                         $options['fields'] = $value;
                     } else {
                         $options['fields'] = array_merge(['id'], $this->getFillableKeys());
                     }
                     break;
                 case 'with':
-                    if (count($value) > 0) {
+                    if (is_array($value) && count($value) > 0) {
                         $options['with'] = [];
                         $options['where_has'] = [];
                         foreach ($value as $relationship => $opts) {
@@ -426,7 +426,7 @@ abstract class Base extends Paginator
                 case 'where_has':
                 case 'where_doesnt_have':
                 case 'or_where_has':
-                    if (count($value) > 0) {
+                    if (is_array($value) && count($value) > 0) {
                         $options[$key] = [];
                         foreach ($value as $relationship => $opts) {
                             if (count($opts) > 0) {
@@ -441,7 +441,7 @@ abstract class Base extends Paginator
                     }
                     break;
                 case 'where_has_morph':
-                    if (count($value) > 0) {
+                    if (is_array($value) && count($value) > 0) {
                         $options[$key] = [];
                         foreach ($value as $relationship => $opts) {
                             if (isset($opts['morph']) && count($opts['morph']) > 0 && isset($opts['options']) && count($opts['options']) > 0) {
@@ -465,12 +465,12 @@ abstract class Base extends Paginator
                     }
                     break;
                 case 'orderby':
-                    if (count($value) > 0) {
+                    if (is_array($value) && count($value) > 0) {
                         $options['orderby'] = $value;
                     }
                     break;
                 case 'func_where':
-                    if (count($value) > 0) {
+                    if (is_array($value) && count($value) > 0) {
                         $options['func_where'] = $this->standardize_search($value);
                     }
                     break;
