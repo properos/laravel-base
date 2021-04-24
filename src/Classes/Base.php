@@ -83,14 +83,18 @@ abstract class Base extends Paginator
 
     public function deleteModel($id, $where = [])
     {
-        if (count($where) > 0) {
-            $this->model->where($where);
+        $model = $this->mode::query();
+
+        if (is_array($where) && count($where) > 0) {
+            $model->where($where);
         }
 
         if (is_array($id) && count($id) > 0) {
-            return Api::success(Str::plural($this->title) . ' were successfully deleted.', $this->model->whereIn('id', $id)->delete());
+            $model->whereIn('id', $id)->delete();
+            return true;
         } elseif ($id > 0) {
-            return Api::success($this->title . ' was successfully deleted.', $this->model->where('id', $id)->delete());
+            $model->where('id', $id)->delete();
+            return true;
         }
         throw new ApiException($this->title . "  could not be deleted.", '006', ['id' => $id]);
     }
