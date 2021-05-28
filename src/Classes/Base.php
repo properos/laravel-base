@@ -353,6 +353,9 @@ abstract class Base extends Paginator
         } else {
             $data = array_merge_recursive($request->only($only), $parameter);
         }
+        if(!isset($data['fields'])){
+            $data['fields'] = [];
+        }
         $options = [];
         foreach ($data as $key => $value) {
             if (!in_array($key, ['limit', 'query', 'withTrashed'])) {
