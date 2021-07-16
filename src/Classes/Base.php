@@ -112,7 +112,7 @@ abstract class Base extends Paginator
     public function findModel($model, $options = [], $collection = false)
     {
 
-        if (isset($options['withtrashed']) && $options['withtrashed']) {
+        if (isset($options['withTrashed']) && $options['withTrashed']) {
             $model->withTrashed();
         }
 
@@ -482,7 +482,7 @@ abstract class Base extends Paginator
                     }
                     break;
                 case 'group_by':
-                case 'withtrashed':
+                case 'withTrashed':
                     $options[$key] = $value;
                     break;
             }
