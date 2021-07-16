@@ -112,7 +112,7 @@ abstract class Base extends Paginator
     public function findModel($model, $options = [], $collection = false)
     {
 
-        if (isset($options['withTrashed']) && $options['withTrashed']) {
+        if (isset($options['withtrashed']) && $options['withtrashed']) {
             $model->withTrashed();
         }
 
@@ -346,7 +346,7 @@ abstract class Base extends Paginator
         return array_keys($this->fillable);
     }
 
-    public function standardize_search($request, $parameter = [], $only = ['query', 'page', 'limit', 'where', 'fields', 'with', 'has', 'doesnt_have', 'where_null', 'where_not_null', 'where_in', 'where_not_in', 'where_has', 'where_doesnt_have', 'orderby', 'withTrashed', 'or_where_has', 'group_by', 'func_where', 'where_raw', 'fields_raw', 'where_has_morph'])
+    public function standardize_search($request, $parameter = [], $only = ['query', 'page', 'limit', 'where', 'fields', 'with', 'has', 'doesnt_have', 'where_null', 'where_not_null', 'where_in', 'where_not_in', 'where_has', 'where_doesnt_have', 'orderby', 'withtrashed', 'or_where_has', 'group_by', 'func_where', 'where_raw', 'fields_raw', 'where_has_morph'])
     {
         if (is_array($request)) {
             $data = array_merge_recursive($request, $parameter);
@@ -358,7 +358,7 @@ abstract class Base extends Paginator
         }
         $options = [];
         foreach ($data as $key => $value) {
-            if (!in_array($key, ['limit', 'query', 'withTrashed'])) {
+            if (!in_array($key, ['limit', 'query', 'withtrashed'])) {
                 if (is_string($value) && $value != '') {
                     $value = json_decode($value, true);
                 } elseif (!is_array($value)) {
@@ -482,7 +482,7 @@ abstract class Base extends Paginator
                     }
                     break;
                 case 'group_by':
-                case 'withTrashed':
+                case 'withtrashed':
                     $options[$key] = $value;
                     break;
             }
