@@ -358,7 +358,7 @@ abstract class Base extends Paginator
         }
         $options = [];
         foreach ($data as $key => $value) {
-            if (!in_array($key, ['limit', 'query', 'withtrashed'])) {
+            if (!in_array($key, ['limit', 'query', 'withtrashed', 'fields_raw'])) {
                 if (is_string($value) && $value != '') {
                     $value = json_decode($value, true);
                 } elseif (!is_array($value)) {
@@ -375,6 +375,17 @@ abstract class Base extends Paginator
                     }
                     break;
                 case 'fields_raw':
+                    if (is_string($value)) {
+                        if(Helper::isJson($value)){
+                            $value = json_decode($value, true);
+                        }else{
+                            $options[$key] = $value;
+                        }
+                    }
+
+                    if (is_array($value)) {
+                        $options[$key] = implode(',', $value);
+                    }
                 case 'where_raw':
                     if (is_string($value)) {
                         $options[$key] = [$value];
