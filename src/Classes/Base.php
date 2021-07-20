@@ -386,6 +386,7 @@ abstract class Base extends Paginator
                     if (is_array($value)) {
                         $options[$key] = implode(',', $value);
                     }
+                    break;
                 case 'where_raw':
                     if (is_string($value)) {
                         $options[$key] = [$value];
