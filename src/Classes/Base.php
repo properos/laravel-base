@@ -343,7 +343,14 @@ abstract class Base extends Paginator
 
     public function getFillableKeys()
     {
-        return array_keys($this->fillable);
+        $values = array_keys($this->fillable);
+        if (method_exists($this->model, 'getAppends') && count($this->model->getAppends()) > 0) {
+            $values = array_merge($values, $this->model->getAppends());
+        }
+        if (method_exists($this->model, 'getHidden') && count($this->model->getHidden()) > 0) {
+            $values = array_diff($values, $this->model->getHidden());
+        }
+        return $values;
     }
 
     public function standardize_search($request, $parameter = [], $only = ['query', 'page', 'limit', 'where', 'fields', 'with', 'has', 'doesnt_have', 'where_null', 'where_not_null', 'where_in', 'where_not_in', 'where_has', 'where_doesnt_have', 'orderby', 'withtrashed', 'or_where_has', 'group_by', 'func_where', 'where_raw', 'fields_raw', 'where_has_morph'])
@@ -408,7 +415,7 @@ abstract class Base extends Paginator
                     if (is_array($value) && count($value) > 0) {
                         $options['fields'] = $value;
                     } else {
-                        $options['fields'] = array_merge(['id'], $this->getFillableKeys());
+                        $options['fields'] = array_merge(['id'], $this->getFillableKeys(), $options['fields']);
                     }
                     break;
                 case 'with':
