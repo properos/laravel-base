@@ -4,7 +4,6 @@ namespace Properos\Base\Classes;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
-use Properos\Base\Classes\Api;
 use Properos\Base\Classes\Paginator;
 use Illuminate\Support\Facades\Validator;
 use Properos\Base\Exceptions\ApiException;
@@ -37,7 +36,7 @@ abstract class Base extends Paginator
     public function init_fillable()
     {
         foreach ($this->model->getFillable() as $key) {
-            $this->fillable[$key] = '';
+            $this->fillable[$key] = null;
         }
     }
 
@@ -45,40 +44,50 @@ abstract class Base extends Paginator
     {
         $validation = Validator::make($data, $rules, $messages);
 
-        if ($validation->passes()) {
-            return $this->model->create($this->fillable(array_merge($this->fillable, $this->formatting($data))));
+        if ($validation->fails()) {
+            throw new ApiException($validation->errors(), '400');
         }
 
-        throw new ApiException($validation->errors(), '006', $data);
+        $model = new $this->mode;
+
+        $data = array_merge($this->fillable, $this->formatting($this->fillable($data)));
+
+        foreach ($data as $key => $value) {
+            $model->{$key} = $value;
+        }
+
+        $model->save();
+        return $model;
     }
 
     public function updateModel($data = [], $rules = [], $messages = [])
     {
         if (!isset($data['id']) || $data['id'] <= 0) {
-            throw new ApiException('The field id is required', '006', $data);
+            throw new ApiException('The field id is required', '400');
         }
         $rules = array_intersect_key($rules, $data);
 
         $validation = Validator::make($data, $rules, $messages);
 
-        if ($validation->passes()) {
-            if (isset($data['where']) && count($data['where']) > 0) {
-                $model = $this->mode::where('id', $data['id'])->where($data['where'])->first();
-            } else {
-                $model = $this->mode::find($data['id']);
-            }
-
-            if ($model) {
-                foreach ($this->formatting($this->fillable($data)) as $key => $value) {
-                    $model->{$key} = $value;
-                }
-                $model->save();
-                return $model;
-            }
-            throw new ApiException($this->title . "  could not be updated.", '006', $data);
+        if ($validation->fails()) {
+            throw new ApiException($validation->errors(), '400', $data);
         }
 
-        throw new ApiException($validation->errors(), '006', $data);
+        if (isset($data['where']) && count($data['where']) > 0) {
+            $model = $this->mode::where('id', $data['id'])->where($data['where'])->first();
+        } else {
+            $model = $this->mode::find($data['id']);
+        }
+
+        if ($model) {
+            foreach ($this->formatting($this->fillable($data)) as $key => $value) {
+                $model->{$key} = $value;
+            }
+            $model->save();
+            return $model;
+        }
+
+        throw new ApiException($this->title . "  could not be updated.", '400', $data);
     }
 
     public function deleteModel($id, $where = [])
@@ -93,15 +102,30 @@ abstract class Base extends Paginator
             $model->whereIn('id', $id)->delete();
             return true;
         } elseif ($id > 0) {
-            $model->where('id', $id)->delete();
-            return true;
+            $object = $model->where('id', $id)->first();
+            if ($object) {
+                $object->delete();
+                return true;
+            } else {
+                throw new ApiException($this->title . " not found", '404', ['id' => $id]);
+            }
         }
-        throw new ApiException($this->title . "  could not be deleted.", '006', ['id' => $id]);
+        throw new ApiException($this->title . "  could not be deleted.", '400', ['id' => $id]);
     }
 
     public function find($options = [], $collection = false)
     {
         return $this->findModel($this->mode::query(), $options, $collection);
+    }
+
+    public function findOne($options = [], $collection = true)
+    {
+        if ($collection) {
+            return $this->findModel($this->mode::on(), $options, $collection)->first();
+        } else {
+            $options['take'] = 1;
+            return head($this->findModel($this->mode::on(), $options, $collection));
+        }
     }
 
     /*
@@ -329,11 +353,7 @@ abstract class Base extends Paginator
             $options['where'] = [$options['where']];
         }
         $options['where'][] = ['id', $id];
-        if ($collection) {
-            return $this->findModel($this->mode::on(), $options, $collection)->first();
-        } else {
-            return head($this->findModel($this->mode::on(), $options, $collection));
-        }
+        return $this->findOne($options, $collection);
     }
 
     public function fillable($data)
@@ -360,10 +380,12 @@ abstract class Base extends Paginator
         } else {
             $data = array_merge_recursive($request->only($only), $parameter);
         }
-        if(!isset($data['fields'])){
+        if (!isset($data['fields'])) {
             $data['fields'] = [];
         }
-        $options = [];
+        $options = [
+            'fields' => []
+        ];
         foreach ($data as $key => $value) {
             if (!in_array($key, ['limit', 'query', 'withtrashed', 'fields_raw'])) {
                 if (is_string($value) && $value != '') {
@@ -383,9 +405,9 @@ abstract class Base extends Paginator
                     break;
                 case 'fields_raw':
                     if (is_string($value)) {
-                        if(Helper::isJson($value)){
+                        if (Helper::isJson($value)) {
                             $value = json_decode($value, true);
-                        }else{
+                        } else {
                             $options[$key] = $value;
                         }
                     }
@@ -523,13 +545,13 @@ abstract class Base extends Paginator
             $aQuery = explode(' ', $query);
             foreach ($aQuery as $value) {
                 if (Str::startsWith($value, '+*') || (Str::startsWith($value, '+') && Str::endsWith($value, '*'))) {
-                    $whereAND .= " ?field? LIKE '" . preg_replace("/(^\+\*|\*$)/", "%", $value) . "' AND";
+                    $whereAND .= " ?field? ILIKE '" . preg_replace("/(^\+\*|\*$)/", "%", $value) . "' AND";
                 } elseif (Str::startsWith($value, '+')) {
-                    $whereAND .= " ?field? LIKE '" . preg_replace("/^\+/", "", $value) . "' AND";
+                    $whereAND .= " ?field? ILIKE '" . preg_replace("/^\+/", "", $value) . "' AND";
                 } elseif (Str::startsWith($value, '*') || Str::endsWith($value, '*')) {
-                    $whereOR .= " ?field? LIKE '" . preg_replace("/(^\*|\*$)/", "%", $value) . "' OR";
+                    $whereOR .= " ?field? ILIKE '" . preg_replace("/(^\*|\*$)/", "%", $value) . "' OR";
                 } else {
-                    $whereOR .= " ?field? LIKE '" . $value . "' OR";
+                    $whereOR .= " ?field? ILIKE '" . $value . "' OR";
                 }
             }
 
