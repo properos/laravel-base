@@ -545,13 +545,13 @@ abstract class Base extends Paginator
             $aQuery = explode(' ', $query);
             foreach ($aQuery as $value) {
                 if (Str::startsWith($value, '+*') || (Str::startsWith($value, '+') && Str::endsWith($value, '*'))) {
-                    $whereAND .= " ?field? ILIKE '" . preg_replace("/(^\+\*|\*$)/", "%", $value) . "' AND";
+                    $whereAND .= " ?field? LIKE '" . preg_replace("/(^\+\*|\*$)/", "%", $value) . "' AND";
                 } elseif (Str::startsWith($value, '+')) {
-                    $whereAND .= " ?field? ILIKE '" . preg_replace("/^\+/", "", $value) . "' AND";
+                    $whereAND .= " ?field? LIKE '" . preg_replace("/^\+/", "", $value) . "' AND";
                 } elseif (Str::startsWith($value, '*') || Str::endsWith($value, '*')) {
-                    $whereOR .= " ?field? ILIKE '" . preg_replace("/(^\*|\*$)/", "%", $value) . "' OR";
+                    $whereOR .= " ?field? LIKE '" . preg_replace("/(^\*|\*$)/", "%", $value) . "' OR";
                 } else {
-                    $whereOR .= " ?field? ILIKE '" . $value . "' OR";
+                    $whereOR .= " ?field? LIKE '" . $value . "' OR";
                 }
             }
 
