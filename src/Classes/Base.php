@@ -586,18 +586,22 @@ abstract class Base extends Paginator
     {
         $where = '';
         if (is_string($query) && $query != '') {
+            $like = 'LIKE';
+            if ($this->model->getConnection()->getDriverName() == 'pgsql') {
+                $like = 'ILIKE';
+            }
             $whereAND = '';
             $whereOR = '';
             $aQuery = array_filter(explode(' ', $query));
             foreach ($aQuery as $value) {
                 if (Str::startsWith($value, '+*') || (Str::startsWith($value, '+') && Str::endsWith($value, '*'))) {
-                    $whereAND .= " ?field? LIKE '" . preg_replace("/(^\+\*|\*$)/", "%", $value) . "' AND";
+                    $whereAND .= " ?field? $like '" . preg_replace("/(^\+\*|\*$)/", "%", $value) . "' AND";
                 } elseif (Str::startsWith($value, '+')) {
-                    $whereAND .= " ?field? LIKE '" . preg_replace("/^\+/", "", $value) . "' AND";
+                    $whereAND .= " ?field? $like '" . preg_replace("/^\+/", "", $value) . "' AND";
                 } elseif (Str::startsWith($value, '*') || Str::endsWith($value, '*')) {
-                    $whereOR .= " ?field? LIKE '" . preg_replace("/(^\*|\*$)/", "%", $value) . "' OR";
+                    $whereOR .= " ?field? $like '" . preg_replace("/(^\*|\*$)/", "%", $value) . "' OR";
                 } else {
-                    $whereOR .= " ?field? LIKE '" . $value . "' OR";
+                    $whereOR .= " ?field? $like '" . $value . "' OR";
                 }
             }
 
