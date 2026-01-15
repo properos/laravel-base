@@ -17,7 +17,7 @@ abstract class Base extends Paginator
 {
     protected $model;
     protected $mode;
-    protected $fillable;
+    protected $fillable = [];
     protected $title;
 
     public function __construct($model, $title)
@@ -143,7 +143,9 @@ abstract class Base extends Paginator
         $model = $this->buildingModel($model, $options);
 
         if (isset($options['limit'])) {
-            $this->set_paginator($model->paginate($options['limit']));
+            $paginator = $model->paginate($options['limit']);
+            $this->set_paginator($paginator);
+            return $this->transform($paginator->getCollection(), $options, $collection);
         } elseif (isset($options['take'])) {
             $model->take($options['take']);
         }
@@ -245,17 +247,33 @@ abstract class Base extends Paginator
         }
 
         if (isset($options['where_in']) && count($options['where_in']) > 0) {
-            foreach ($options['where_in'] as $where) {
-                if (Helper::isAssoc($where)) {
-                    $model->whereIn($where['field'], $where['value']);
+            foreach ($options['where_in'] as $field => $value) {
+                if (is_string($field)) {
+                    if (is_array($value) && count($value) > 0) {
+                        $model->whereIn($field, $value);
+                    } elseif (is_string($value) || is_numeric($value)) {
+                        $model->whereIn($field, [(string)$value]);
+                    }
+                } elseif (Helper::isAssoc($value)) {
+                    if (is_array($value['value']) && count($value['value']) > 0) {
+                        $model->whereIn($value['field'], (array) $value['value']);
+                    }
                 }
             }
         }
 
         if (isset($options['where_not_in']) && count($options['where_not_in']) > 0) {
-            foreach ($options['where_not_in'] as $where) {
-                if (Helper::isAssoc($where)) {
-                    $model->whereNotIn($where['field'], $where['value']);
+            foreach ($options['where_not_in'] as $field => $value) {
+                if (is_string($field)) {
+                    if (is_array($value) && count($value) > 0) {
+                        $model->whereNotIn($field, $value);
+                    } elseif (is_string($value) || is_numeric($value)) {
+                        $model->whereNotIn($field, [(string)$value]);
+                    }
+                } elseif (Helper::isAssoc($value)) {
+                    if (is_array($value['value']) && count($value['value']) > 0) {
+                        $model->whereNotIn($value['field'], (array) $value['value']);
+                    }
                 }
             }
         }
@@ -338,8 +356,33 @@ abstract class Base extends Paginator
         }
         if (isset($options['orderby']) && count($options['orderby']) > 0) { //[field => ASC, ...]
             if (Helper::isAssoc($options['orderby'])) {
+                $joinedTables = [];
                 foreach ($options['orderby'] as $field => $value) {
-                    $model->orderBy($field, $value);
+                    if (Str::contains($field, '.')) {
+                        $parts = explode('.', $field);
+                        if (count($parts) > 2) {
+                            throw new ApiException('Ordering by nested relationships is not supported.', '400');
+                        }
+                        $relationName = $parts[0];
+                        $relField = $parts[1];
+
+                        if (method_exists($model->getModel(), $relationName)) {
+                            $relation = $model->getModel()->{$relationName}();
+                            $relatedTable = $relation->getRelated()->getTable();
+
+                            if (!in_array($relatedTable, $joinedTables)) {
+                                if ($relation instanceof \Illuminate\Database\Eloquent\Relations\BelongsTo) {
+                                    $model->leftJoin($relatedTable, $relatedTable . '.' . $relation->getOwnerKeyName(), '=', $model->getModel()->getTable() . '.' . $relation->getForeignKeyName());
+                                } else if ($relation instanceof \Illuminate\Database\Eloquent\Relations\HasOne || $relation instanceof \Illuminate\Database\Eloquent\Relations\HasMany) {
+                                    $model->leftJoin($relatedTable, $relatedTable . '.' . $relation->getForeignKeyName(), '=', $model->getModel()->getTable() . '.' . $relation->getLocalKeyName());
+                                }
+                                $joinedTables[] = $relatedTable;
+                            }
+                            $model->orderBy($relatedTable . '.' . $relField, $value);
+                        }
+                    } else {
+                        $model->orderBy($model->getModel()->getTable() . '.' . $field, $value);
+                    }
                 }
             }
         }
@@ -373,7 +416,7 @@ abstract class Base extends Paginator
         return $values;
     }
 
-    public function standardize_search($request, $parameter = [], $only = ['query', 'page', 'limit', 'where', 'fields', 'with', 'has', 'doesnt_have', 'where_null', 'where_not_null', 'where_in', 'where_not_in', 'where_has', 'where_doesnt_have', 'orderby', 'withtrashed', 'or_where_has', 'group_by', 'func_where', 'where_raw', 'fields_raw', 'where_has_morph'])
+    public function standardize_search($request, $parameter = [], $only = ['query', 'page', 'limit', 'where', 'fields', 'with', 'has', 'doesnt_have', 'where_null', 'where_not_null', 'where_in', 'where_not_in', 'where_has', 'where_doesnt_have', 'orderby', 'withtrashed', 'or_where_has', 'group_by', 'func_where', 'where_raw', 'fields_raw', 'where_has_morph', 'order_by', 'sort_by', 'sortby'])
     {
         if (is_array($request)) {
             $data = array_merge_recursive($request, $parameter);
@@ -437,7 +480,7 @@ abstract class Base extends Paginator
                     if (is_array($value) && count($value) > 0) {
                         $options['fields'] = $value;
                     } else {
-                        $options['fields'] = array_merge(['id'], $this->getFillableKeys(), $options['fields']);
+                        $options['fields'] = array_unique(array_merge(['id'], $this->getFillableKeys()));
                     }
                     break;
                 case 'with':
@@ -513,6 +556,9 @@ abstract class Base extends Paginator
                     }
                     break;
                 case 'orderby':
+                case 'order_by':
+                case 'sort_by':
+                case 'sortby':
                     if (is_array($value) && count($value) > 0) {
                         $options['orderby'] = $value;
                     }
@@ -542,7 +588,7 @@ abstract class Base extends Paginator
         if (is_string($query) && $query != '') {
             $whereAND = '';
             $whereOR = '';
-            $aQuery = explode(' ', $query);
+            $aQuery = array_filter(explode(' ', $query));
             foreach ($aQuery as $value) {
                 if (Str::startsWith($value, '+*') || (Str::startsWith($value, '+') && Str::endsWith($value, '*'))) {
                     $whereAND .= " ?field? LIKE '" . preg_replace("/(^\+\*|\*$)/", "%", $value) . "' AND";
@@ -569,32 +615,53 @@ abstract class Base extends Paginator
 
     public function transform($model, $options, $collection)
     {
+        $isBuilder = ($model instanceof \Illuminate\Database\Eloquent\Builder || $model instanceof \Illuminate\Database\Query\Builder || $model instanceof \Illuminate\Database\Eloquent\Relations\Relation);
+
         if ($collection) {
+            if ($isBuilder) {
+                if (isset($options['fields']) && count($options['fields']) > 0) {
+                    $fillable = $this->model->getFillable();
+                    if ($this->model::CREATED_AT && !in_array($this->model::CREATED_AT, $fillable)) {
+                        $fillable[] = $this->model::CREATED_AT;
+                    }
+                    if ($this->model::UPDATED_AT && !in_array($this->model::UPDATED_AT, $fillable)) {
+                        $fillable[] = $this->model::UPDATED_AT;
+                    }
+                    if ($this->model->getKeyName() != '' && !in_array($this->model->getKeyName(), $fillable)) {
+                        $fillable[] = $this->model->getKeyName();
+                    }
+
+                    return $model->get($this->intersect($options['fields'], $fillable));
+                } else {
+                    return $model->get();
+                }
+            }
+
             if (isset($options['fields']) && count($options['fields']) > 0) {
                 $fillable = $this->model->getFillable();
-                if ($this->model::CREATED_AT && !in_array($this->model::CREATED_AT, $fillable)) {
-                    $fillable[] = $this->model::CREATED_AT;
-                }
-                if ($this->model::UPDATED_AT && !in_array($this->model::UPDATED_AT, $fillable)) {
-                    $fillable[] = $this->model::UPDATED_AT;
-                }
-                if ($this->model->getKeyName() != '' && !in_array($this->model->getKeyName(), $fillable)) {
-                    $fillable[] = $this->model->getKeyName();
-                }
+                $keys = [$this->model->getKeyName(), 'id'];
+                if ($this->model::CREATED_AT) $keys[] = $this->model::CREATED_AT;
+                if ($this->model::UPDATED_AT) $keys[] = $this->model::UPDATED_AT;
 
-                return $model->get($this->intersect($options['fields'], $fillable));
-            } else {
-                return $model->get();
+                $fieldsToKeep = $this->intersect($options['fields'], array_unique(array_merge($keys, $fillable)));
+
+                $model->each(function ($item) use ($fieldsToKeep) {
+                    if ($item instanceof \Illuminate\Database\Eloquent\Model) {
+                        $item->setRawAttributes(Arr::only($item->getAttributes(), $fieldsToKeep));
+                    }
+                });
             }
+            return $model;
         } else {
+            $items = $isBuilder ? $model->get() : $model;
+
             if (isset($options['fields']) && count($options['fields']) > 0) {
-                $collections = $model->get();
-                $res = $collections->map(function ($item) use ($options) {
-                    return Arr::only($item->toArray(), $options['fields']);
+                $res = $items->map(function ($item) use ($options) {
+                    return Arr::only(is_array($item) ? $item : $item->toArray(), $options['fields']);
                 });
                 return $res->all();
             } else {
-                return $model->get()->toArray();
+                return is_array($items) ? $items : $items->toArray();
             }
         }
     }
