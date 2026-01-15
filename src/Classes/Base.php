@@ -183,43 +183,11 @@ abstract class Base extends Paginator
         }
 
         if (isset($options['where']) && count($options['where']) > 0) {
-            if (!is_array($options['where'][0])) {
-                if (count($options['where']) > 2) {
-                    $model->where($options['where'][0], $options['where'][1], $options['where'][2]);
-                } else {
-                    $model->where($options['where'][0], $options['where'][1]);
-                }
-            } else {
-                foreach ($options['where'] as $where) {
-                    if (!is_array($where[0])) {
-                        if (count($where) > 2) {
-                            $model->where($where[0], $where[1], $where[2]);
-                        } else {
-                            $model->where($where[0], $where[1]);
-                        }
-                    }
-                }
-            }
+            $this->applyConditions($model, $options['where'], 'where');
         }
 
         if (isset($options['or_where']) && count($options['or_where']) > 0) {
-            if (!is_array($options['or_where'][0])) {
-                if (count($options['or_where']) > 2) {
-                    $model->orWhere($options['or_where'][0], $options['or_where'][1], $options['or_where'][2]);
-                } else {
-                    $model->orWhere($options['or_where'][0], $options['or_where'][1]);
-                }
-            } else {
-                foreach ($options['or_where'] as $or_where) {
-                    if (!is_array($or_where[0])) {
-                        if (count($or_where) > 2) {
-                            $model->orWhere($or_where[0], $or_where[1], $or_where[2]);
-                        } else {
-                            $model->orWhere($or_where[0], $or_where[1]);
-                        }
-                    }
-                }
-            }
+            $this->applyConditions($model, $options['or_where'], 'orWhere');
         }
 
         if (isset($options['where_raw']) && count($options['where_raw']) > 0) {
@@ -635,6 +603,11 @@ abstract class Base extends Paginator
                         $fillable[] = $this->model->getKeyName();
                     }
 
+                    // Keep fields that are in fillable OR were explicitly added via fields_raw/select
+                    // If fields_raw is present, we trust the fields array more.
+                    if (isset($options['fields_raw'])) {
+                        return $model->get($options['fields']);
+                    }
                     return $model->get($this->intersect($options['fields'], $fillable));
                 } else {
                     return $model->get();
@@ -642,16 +615,14 @@ abstract class Base extends Paginator
             }
 
             if (isset($options['fields']) && count($options['fields']) > 0) {
-                $fillable = $this->model->getFillable();
-                $keys = [$this->model->getKeyName(), 'id'];
-                if ($this->model::CREATED_AT) $keys[] = $this->model::CREATED_AT;
-                if ($this->model::UPDATED_AT) $keys[] = $this->model::UPDATED_AT;
-
-                $fieldsToKeep = $this->intersect($options['fields'], array_unique(array_merge($keys, $fillable)));
-
-                $model->each(function ($item) use ($fieldsToKeep) {
+                $model->each(function ($item) use ($options) {
                     if ($item instanceof \Illuminate\Database\Eloquent\Model) {
-                        $item->setRawAttributes(Arr::only($item->getAttributes(), $fieldsToKeep));
+                        $attributes = $item->getAttributes();
+                        // Only keep requested fields that actually exist in the loaded attributes
+                        $fieldsToKeep = array_intersect($options['fields'], array_keys($attributes));
+                        if (count($fieldsToKeep) > 0) {
+                            $item->setRawAttributes(Arr::only($attributes, $fieldsToKeep));
+                        }
                     }
                 });
             }
@@ -733,5 +704,47 @@ abstract class Base extends Paginator
             $str = rtrim($str, ' ,');
         }
         return $str;
+    }
+
+    protected function applyConditions($model, $conditions, $method = 'where')
+    {
+        if (isset($conditions) && count($conditions) > 0) {
+            if (!is_array($conditions[0])) {
+                $this->applySingleCondition($model, $conditions, $method);
+            } else {
+                foreach ($conditions as $condition) {
+                    if (is_array($condition) && isset($condition[0]) && !is_array($condition[0])) {
+                        $this->applySingleCondition($model, $condition, $method);
+                    }
+                }
+            }
+        }
+        return $model;
+    }
+
+    protected function applySingleCondition($model, $condition, $method = 'where')
+    {
+        if (count($condition) > 2) {
+            $operator = strtoupper($condition[1]);
+            $isOr = $method === 'orWhere';
+            if ($operator === 'IN') {
+                $m = $isOr ? 'orWhereIn' : 'whereIn';
+                $val = is_array($condition[2]) ? $condition[2] : [(string)$condition[2]];
+                $model->{$m}($condition[0], $val);
+            } elseif (in_array($operator, ['NOTIN', 'NOT IN', 'NOT_IN'])) {
+                $m = $isOr ? 'orWhereNotIn' : 'whereNotIn';
+                $val = is_array($condition[2]) ? $condition[2] : [(string)$condition[2]];
+                $model->{$m}($condition[0], $val);
+            } else {
+                $model->{$method}($condition[0], $condition[1], $condition[2]);
+            }
+        } else {
+            if (is_array($condition[1])) {
+                $m = ($method === 'orWhere') ? 'orWhereIn' : 'whereIn';
+                $model->{$m}($condition[0], $condition[1]);
+            } else {
+                $model->{$method}($condition[0], $condition[1]);
+            }
+        }
     }
 }
