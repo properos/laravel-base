@@ -325,6 +325,9 @@ abstract class Base extends Paginator
         if (isset($options['orderby']) && count($options['orderby']) > 0) { //[field => ASC, ...]
             if (Helper::isAssoc($options['orderby'])) {
                 $joinedTables = [];
+                $hasOrderJoin = false;
+                $orderSelects = [];
+                $baseTable = $model->getModel()->getTable();
                 foreach ($options['orderby'] as $field => $value) {
                     if (Str::contains($field, '.')) {
                         $parts = explode('.', $field);
@@ -340,17 +343,29 @@ abstract class Base extends Paginator
 
                             if (!in_array($relatedTable, $joinedTables)) {
                                 if ($relation instanceof \Illuminate\Database\Eloquent\Relations\BelongsTo) {
-                                    $model->leftJoin($relatedTable, $relatedTable . '.' . $relation->getOwnerKeyName(), '=', $model->getModel()->getTable() . '.' . $relation->getForeignKeyName());
+                                    $model->leftJoin($relatedTable, $relatedTable . '.' . $relation->getOwnerKeyName(), '=', $baseTable . '.' . $relation->getForeignKeyName());
                                 } else if ($relation instanceof \Illuminate\Database\Eloquent\Relations\HasOne || $relation instanceof \Illuminate\Database\Eloquent\Relations\HasMany) {
-                                    $model->leftJoin($relatedTable, $relatedTable . '.' . $relation->getForeignKeyName(), '=', $model->getModel()->getTable() . '.' . $relation->getLocalKeyName());
+                                    $model->leftJoin($relatedTable, $relatedTable . '.' . $relation->getForeignKeyName(), '=', $baseTable . '.' . $relation->getLocalKeyName());
                                 }
                                 $joinedTables[] = $relatedTable;
+                                $hasOrderJoin = true;
                             }
-                            $model->orderBy($relatedTable . '.' . $relField, $value);
+                            $orderColumn = $relatedTable . '.' . $relField;
+                            if (!in_array($orderColumn, $orderSelects)) {
+                                $orderSelects[] = $orderColumn;
+                            }
+                            $model->orderBy($orderColumn, $value);
                         }
                     } else {
-                        $model->orderBy($model->getModel()->getTable() . '.' . $field, $value);
+                        $model->orderBy($baseTable . '.' . $field, $value);
                     }
+                }
+                if ($hasOrderJoin) {
+                    $model->select($baseTable . '.*');
+                    if (count($orderSelects) > 0) {
+                        $model->addSelect($orderSelects);
+                    }
+                    $model->distinct();
                 }
             }
         }
